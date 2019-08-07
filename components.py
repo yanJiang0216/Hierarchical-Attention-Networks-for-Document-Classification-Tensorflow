@@ -51,12 +51,11 @@ def sequence(rnn_inputs, hidden_size, seq_lens):
                                                                )
     print('rnn outputs: '+str(rnn_outputs))   
     print('final state: '+str(final_state))
-   
     return rnn_outputs
    
 def attention(atten_inputs, atten_size):
     ## attention mechanism uses Ilya Ivanov's implementation(https://github.com/ilivans/tf-rnn-attention)
-    print('attention inputs: '+str(atten_inputs))
+    print('attention inputs: '+str(atten_inputs))#attention inputs
     max_time = int(atten_inputs.shape[1])
     print("max time length: "+str(max_time))
     combined_hidden_size = int(atten_inputs.shape[2])
@@ -66,14 +65,15 @@ def attention(atten_inputs, atten_size):
     u_omega = tf.Variable(tf.random_normal([atten_size], stddev=0.1, dtype=tf.float32))
     
     v = tf.tanh(tf.matmul(tf.reshape(atten_inputs, [-1, combined_hidden_size]), W_omega) + tf.reshape(b_omega, [1, -1]))
-    print("v: "+str(v))
+    print("v: "+str(v))#v的维数是?*atten_size
     # u_omega is the summarizing question vector
-    vu = tf.matmul(v, tf.reshape(u_omega, [-1, 1]))
+    vu = tf.matmul(v, tf.reshape(u_omega, [-1, 1]))#vu的维数是？*1
     print("vu: "+str(vu))
-    exps = tf.reshape(tf.exp(vu), [-1, max_time])
+    exps = tf.reshape(tf.exp(vu), [-1, max_time])#exps的维数是batch_size*max_time
     print("exps: "+str(exps))
-    alphas = exps / tf.reshape(tf.reduce_sum(exps, 1), [-1, 1])
-   # alphas = exps / tf.reduce_sum(exps,1,keep_dim=TRUE）这么写也可以吧
+    alphas = exps / tf.reshape(tf.reduce_sum(exps, 1), [-1, 1])# tf.reshape(tf.reduce_sum(exps, 1), [-1, 1])的维数是batch_size*1
+    # alphas的维数是batch_size*max_time
+    #alphas = exps / tf.reduce_sum(exps,1,keep_dim=TRUE）这么写也可以吧
     print("alphas: "+str(alphas))
     atten_outs = tf.reduce_sum(atten_inputs * tf.reshape(alphas, [-1, max_time, 1]), 1)
     print("atten outs: "+str(atten_outs))
@@ -85,7 +85,7 @@ def visualize_sentence_format(sent):
     return visual_sent
 
 def visualize(sess, inputs, revlens, max_rev_length, keep_probs, index2word, alphas_words, alphas_sents,  x_test, y_test, y_predict, visual_sample_index):
-    visual_dir = "../visualization"
+    visual_dir = "./visualization"
     # visualization
     sents_visual_file = os.path.join(visual_dir, "sents_in_review_visualization_{}.html".format(visual_sample_index))
     x_test_sample = x_test[visual_sample_index:visual_sample_index+1]

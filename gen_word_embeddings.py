@@ -12,10 +12,14 @@ def gen_formatted_review(data_dir, tokenizer = RegexpTokenizer(r'\w+') ):
             content_formatted = tokenizer.tokenize(content)
             data.append(content_formatted)
     return data
+# def gen_Yelp_formatted_review(data_dir):
 
 
 if __name__ == "__main__":
-    working_dir = "../data/aclImdb"
+
+    # create IMDB word vector
+    embedding_size =200
+    working_dir = "./data/aclImdb"
     train_dir = os.path.join(working_dir, "train")
     train_pos_dir = os.path.join(train_dir, "pos")
     train_neg_dir = os.path.join(train_dir, "neg")
@@ -29,17 +33,21 @@ if __name__ == "__main__":
     test2 = gen_formatted_review(test_neg_dir)
     test.extend(test2)
     train.extend(test)
-    embedding_size = 50
-    fname = os.path.join(working_dir, "imdb_embedding")
-    if os.path.isfile(fname):
-        embedding_model = Word2Vec.load(fname)
-    else:
-        embedding_model = Word2Vec(train, size=embedding_size, window=5, min_count=5)
-        embedding_model.save(fname)
-    word1 = "great"
-    word2 = "horrible"
-    print("similar words of {}:".format(word1))
-    print(embedding_model.most_similar('great'))
-    print("similar words of {}:".format(word2))
-    print(embedding_model.most_similar('horrible'))
+    corpus_names=[train,train2]
+    emmbedding_model = os.path.join(working_dir, "imdb_embedding")
+    for corpus_name in corpus_names:
+        if os.path.isfile(emmbedding_model):
+            embedding_model = Word2Vec.load(emmbedding_model)
+            embedding_model = Word2Vec(corpus_name, size=embedding_size, window=5, min_count=5)
+            embedding_model.save(emmbedding_model)
+        else:
+            embedding_model = Word2Vec(corpus_name, size=embedding_size, window=5, min_count=5)
+            embedding_model.save(emmbedding_model)
+    #create Yelp_2015 word_embedding
+    # word1 = "great"
+    # word2 = "horrible"
+    # print("similar words of {}:".format(word1))
+    # print(embedding_model.most_similar('great'))
+    # print("similar words of {}:".format(word2))
+    # print(embedding_model.most_similar('horrible'))
     pass

@@ -26,9 +26,9 @@ def build_graph(
     print(max_rev_length, sent_length)
 
     _, embedding_size = embeddings.shape
-    word_rnn_inputs = tf.nn.embedding_lookup( tf.convert_to_tensor(embeddings, np.float32), inputs)
+    word_rnn_inputs = tf.nn.embedding_lookup( tf.convert_to_tensor(embeddings, np.float32), inputs)#将词号转换成词向量
     print("word rnn inputs: "+str(word_rnn_inputs))
-    word_rnn_inputs_formatted = tf.reshape(word_rnn_inputs, [-1, sent_length, embedding_size])
+    word_rnn_inputs_formatted = tf.reshape(word_rnn_inputs, [-1, sent_length, embedding_size])#将这些都变成评论数量×70×词向量的维度
     print('word rnn inputs formatted: '+str(word_rnn_inputs_formatted))
 
     reuse_value = None
@@ -40,7 +40,7 @@ def build_graph(
     # Attention mechanism at word level
 
     atten_inputs = tf.concat(word_rnn_outputs, 2)
-    combined_hidden_size = int(atten_inputs.shape[2])
+    combined_hidden_size = int(atten_inputs.shape[2])#这块的维数应该是词向量维数的两倍
 
     atten_inputs = tf.nn.dropout(atten_inputs, keep_probs[0])
     with tf.variable_scope("word_atten"):
@@ -67,16 +67,17 @@ def build_graph(
     dense = tf.matmul(rev_outs, weights_out) + biases_out
     print(dense)
 
+
     return dense, alphas_words, alphas_sents
 
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Parameters for building the model.')
-    parser.add_argument('-b', '--batch_size', type=int, default=512,
+    parser.add_argument('-b', '--batch_size', type=int, default=1024,
                    help='training batch size')
     parser.add_argument('-r', '--resume', type=bool, default=False,
                    help='pick up the latest check point and resume')
-    parser.add_argument('-e', '--epochs', type=int, default=10,
+    parser.add_argument('-e', '--epochs', type=int, default=50,
                    help='epochs for training')
 
     args = parser.parse_args()
@@ -84,8 +85,8 @@ if __name__=="__main__":
     resume = args.resume
     epochs = args.epochs
 
-    working_dir = "../data/aclImdb"
-    log_dir = "../logs"
+    working_dir = "./data/aclImdb"
+    log_dir = "./logs"
     train_filename = os.path.join(working_dir, "train_df_file")
     test_filename = os.path.join(working_dir, "test_df_file")
     emb_filename = os.path.join(working_dir, "emb_matrix")
@@ -101,11 +102,11 @@ if __name__=="__main__":
     nclasses = 2
     y_ = tf.placeholder(tf.int32, shape=[None, nclasses])
     inputs = tf.placeholder(tf.int32, [None, max_rev_length, sent_length])
-    revlens = tf.placeholder(tf.int32, [None])
+    revlens = tf.placeholder(tf.int32, [None])#评论的长度
     keep_probs = tf.placeholder(tf.float32, [2])
 
-    dense, alphas_words, alphas_sents = build_graph(inputs, revlens, keep_probs, embeddings=emb_matrix, nclasses=nclasses)
-    cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=dense))
+    dense, alphas_words, alphas_sents = build_graph(inputs, revlens, keep_probs, embeddings=emb_matrix, nclasses=nclasses)#
+    cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=dense))#损失函数
     with tf.variable_scope('optimizers', reuse=None):
         optimizer = tf.train.AdamOptimizer(0.01).minimize(cross_entropy)
     y_predict = tf.argmax(dense, 1)
@@ -137,6 +138,10 @@ if __name__=="__main__":
             resume_from_epoch = int(str(latest_cpt_file).split('-')[1])
             print("it resumes from previous epoch of {}".format(resume_from_epoch))
             saver.restore(sess, latest_cpt_file)
+        interval_max=5
+        interval_count=0
+        best_accuracy = 0.0
+
         for epoch in range(resume_from_epoch+1, resume_from_epoch+epochs+1):
             avg_cost = 0.0
             print("epoch {}".format(epoch))
@@ -149,31 +154,37 @@ if __name__=="__main__":
                 _, c, summary_in_batch_train = sess.run([optimizer, cross_entropy, summary_op], feed_dict=feed)
                 avg_cost += c/total_batch
                 train_writer.add_summary(summary_in_batch_train, epoch*total_batch + i)
-            saver.save(sess, os.path.join(log_dir, "model.ckpt"), epoch, write_meta_graph=False)
             print("avg cost in the training phase epoch {}: {}".format(epoch, avg_cost))
 
-        print("evaluating...")
 
-        x_test = np.asarray(df_test['review'].tolist())
-        y_test = df_test['label'].values.tolist()
-        test_review_lens = df_test['length'].tolist()
-        test_batch_size = 1000
-        total_batch2 = int(len(x_test)/(test_batch_size))
-        avg_accu = 0.0
+            print("evaluating...")
+            x_test = np.asarray(df_test['review'].tolist())
+            y_test = df_test['label'].values.tolist()
+            test_review_lens = df_test['length'].tolist()
+            test_batch_size = 1000
+            total_batch2 = int(len(x_test)/(test_batch_size))
+            avg_accu = 0.0
+            for i in range(total_batch2):
+            #for i in range(0):
+                batch_x = x_test[i*test_batch_size:(i+1)*test_batch_size]
+                batch_y = y_test[i*test_batch_size:(i+1)*test_batch_size]
+                batch_seqlen = test_review_lens[i*test_batch_size:(i+1)*test_batch_size]
 
-        for i in range(total_batch2):
-        #for i in range(0):
-            batch_x = x_test[i*test_batch_size:(i+1)*test_batch_size]
-            batch_y = y_test[i*test_batch_size:(i+1)*test_batch_size]
-            batch_seqlen = test_review_lens[i*test_batch_size:(i+1)*test_batch_size]
+                batch_label_formatted2 =tf.one_hot(indices=batch_y, depth=depth, on_value=on_value, off_value=off_value, axis=-1)
 
-            batch_label_formatted2 =tf.one_hot(indices=batch_y, depth=depth, on_value=on_value, off_value=off_value, axis=-1)
-
-            batch_labels2 = sess.run(batch_label_formatted2)
-            feed = {inputs: batch_x, revlens: batch_seqlen, y_: batch_labels2, keep_probs: [1.0, 1.0]}
-            accu  = sess.run(accuracy, feed_dict=feed)
-            avg_accu += 1.0*accu/total_batch2
-
-        print("prediction accuracy on test set is {}".format(avg_accu))
+                batch_labels2 = sess.run(batch_label_formatted2)
+                feed = {inputs: batch_x, revlens: batch_seqlen, y_: batch_labels2, keep_probs: [1.0, 1.0]}
+                accu  = sess.run(accuracy, feed_dict=feed)
+                avg_accu += 1.0*accu/total_batch2
+            print("prediction accuracy on test set is {}".format(avg_accu))
+            if avg_accu > best_accuracy:
+                interval_count =0
+                saver.save(sess, os.path.join(log_dir, "model.ckpt"), epoch, write_meta_graph=False)
+                best_accuracy=avg_accu
+            else:
+                interval_count +=1
+            if interval_count >interval_max:
+                break
+        print("training finished!")
         visual_sample_index = 99
         visualize(sess, inputs, revlens, max_rev_length, keep_probs, index2word, alphas_words, alphas_sents,  x_test, y_test, y_predict, visual_sample_index)
